@@ -1,0 +1,95 @@
+---
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const VERCEL_HOOK = import.meta.env.VITE_VERCEL_DEPLOY_HOOK || '';
+const BUCKET = 'properties';
+const FILE = 'properties.json';
+import { supabase as supabaseServer } from "../../../lib/supabaseServer.js";
+
+const { id } = Astro.params;
+const { data: { publicUrl } } = supabaseServer.storage.from(BUCKET).getPublicUrl(FILE);
+let property = null;
+
+try {
+  const res = await fetch(publicUrl);
+  if (res.ok) {
+    const arr = await res.json();
+    property = arr.find(p => String(p.id) === String(id)) || null;
+  }
+} catch (e) {
+  property = null;
+}
+---
+<html lang="he">
+  <head><meta charset="utf-8" /><title>עריכת דירה</title></head>
+  <body>
+    <h1>עריכת דירה</h1>
+
+    {property ? (
+      <form id="propForm">
+        <input type="hidden" name="id" value={property.id} />
+        <label>כותרת: <input name="title" value={property.title} required /></label><br/>
+        <label>מחיר: <input name="price" type="number" value={property.price} required /></label><br/>
+        <label>כתובת: <input name="address" value={property.address} required /></label><br/>
+        <label>תמונה (URL): <input name="image" value={property.image} required /></label><br/>
+        <label>תיאור: <textarea name="description">{property.description}</textarea></label><br/>
+        <button type="submit">עדכן</button>
+      </form>
+    ) : (
+      <p>דירה לא נמצאה</p>
+    )}
+
+    <script type="module">
+      import { createClient } from 'https://esm.sh/@supabase/supabase-js';
+      const supabase = createClient(${JSON.stringify(SUPABASE_URL)}, ${JSON.stringify(SUPABASE_KEY)});
+      const VERCEL_HOOK = ${JSON.stringify(VERCEL_HOOK)};
+      const BUCKET = ${JSON.stringify(BUCKET)};
+      const FILE = ${JSON.stringify(FILE)};
+
+      (async () => {
+        const session = (await supabase.auth.getSession()).data.session;
+        if (!session) {
+          alert('יש להתחבר');
+          location.href = '/auth/login';
+          return;
+        }
+      })();
+
+      document.getElementById('propForm')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        const id = fd.get('id');
+        const updated = {
+          id,
+          title: fd.get('title'),
+          price: Number(fd.get('price')),
+          address: fd.get('address'),
+          image: fd.get('image'),
+          description: fd.get('description')
+        };
+
+        // הורד את הקובץ
+        const { data: downloadData, error: downloadError } = await supabase.storage.from(BUCKET).download(FILE);
+        if (downloadError && downloadError.status !== 404) return alert('שגיאה בקריאת הקובץ: ' + downloadError.message);
+        let props = [];
+        if (downloadData) {
+          const text = await downloadData.text();
+          props = JSON.parse(text);
+        }
+
+        props = props.map(p => String(p.id) === String(id) ? updated : p);
+
+        const blob = new Blob([JSON.stringify(props, null, 2)], { type: 'application/json' });
+        const { error: uploadError } = await supabase.storage.from(BUCKET).upload(FILE, blob, { upsert: true });
+        if (uploadError) return alert('שגיאה בהעלאה: ' + uploadError.message);
+
+        if (VERCEL_HOOK) {
+          try { await fetch(VERCEL_HOOK, { method: 'POST' }); } catch (e) { console.warn(e); }
+        }
+
+        alert('עודכן בהצלחה');
+        location.href = `/property/${id}`;
+      });
+    </script>
+  </body>
+</html>

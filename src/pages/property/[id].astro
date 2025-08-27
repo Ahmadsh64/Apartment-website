@@ -1,0 +1,36 @@
+---
+import { supabase } from "../../lib/supabaseServer.js";
+const BUCKET = 'properties';
+const FILE = 'properties.json';
+const { data: { publicUrl } } = supabase.storage.from(BUCKET).getPublicUrl(FILE);
+
+let property = null;
+const { id } = Astro.params;
+
+try {
+  const res = await fetch(publicUrl);
+  if (res.ok) {
+    const arr = await res.json();
+    property = arr.find(p => String(p.id) === String(id)) || null;
+  }
+} catch (e) {
+  property = null;
+}
+---
+<html lang="he">
+  <head><meta charset="utf-8" /><title>{property ? property.title : 'דירה'}</title></head>
+  <body>
+    {property ? (
+      <>
+        <h1>{property.title}</h1>
+        <img src={property.image} alt={property.title} width="600" />
+        <p><b>מחיר:</b> {property.price?.toLocaleString()} ₪</p>
+        <p><b>כתובת:</b> {property.address}</p>
+        <p>{property.description}</p>
+        <a href="/">חזרה לרשימה</a>
+      </>
+    ) : (
+      <p>לא נמצאה דירה</p>
+    )}
+  </body>
+</html>

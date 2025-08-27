@@ -1,0 +1,33 @@
+---
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+---
+<html lang="he">
+  <head><meta charset="utf-8" /><title>Signup</title></head>
+  <body>
+    <h1>הרשמה</h1>
+    <form id="signupForm">
+      <label>אימייל: <input name="email" type="email" required /></label><br/>
+      <label>סיסמה: <input name="password" type="password" required /></label><br/>
+      <button type="submit">הרשם</button>
+    </form>
+
+    <script type="module">
+      import { createClient } from 'https://esm.sh/@supabase/supabase-js';
+      const SUPABASE_URL = ${JSON.stringify(SUPABASE_URL)};
+      const SUPABASE_KEY = ${JSON.stringify(SUPABASE_KEY)};
+      const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+      document.getElementById('signupForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        const email = fd.get('email');
+        const password = fd.get('password');
+        const { data, error } = await supabase.auth.signUp({ email, password });
+        if (error) return alert('שגיאה: ' + error.message);
+        alert('נרשמת — בדוק/י את המייל לאימות (אם מופיע).');
+        location.href = '/auth/login';
+      });
+    </script>
+  </body>
+</html>
