@@ -17,8 +17,6 @@ try {
 }
 
 const PUBLIC_JSON_URL = publicUrl;
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 ---
 <html lang="he">
   <head>
@@ -41,8 +39,9 @@ const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
     </div>
 
     <script type="module">
-      // ברגע שדף נטען — נעשה שאילתה ל־JSON הציבורי מחדש כדי להציג עדכונים מיידיים (בלי לחכות ל־build)
-      const PROPERTIES_URL = ${JSON.stringify(PUBLIC_JSON_URL)};
+      // הזרקה תקינה של URL מה-frontmatter
+      const PROPERTIES_URL = `${PUBLIC_JSON_URL}`;
+
       async function refresh() {
         try {
           const res = await fetch(PROPERTIES_URL);
@@ -66,7 +65,8 @@ const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
           console.warn('refresh failed', err);
         }
       }
-      // רענון מיד ולפי צורך (אפשר להוסיף setInterval אם רוצים)
+
+      // רענון מידי
       refresh();
     </script>
   </body>

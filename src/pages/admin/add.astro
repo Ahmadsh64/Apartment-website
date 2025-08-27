@@ -5,8 +5,12 @@ const VERCEL_HOOK = import.meta.env.VITE_VERCEL_DEPLOY_HOOK || '';
 const BUCKET = 'properties';
 const FILE = 'properties.json';
 ---
+
 <html lang="he">
-  <head><meta charset="utf-8" /><title>הוספת דירה - Admin</title></head>
+  <head>
+    <meta charset="utf-8" />
+    <title>הוספת דירה - Admin</title>
+  </head>
   <body>
     <h1>הוספת דירה (Admin)</h1>
     <form id="propForm">
@@ -21,29 +25,17 @@ const FILE = 'properties.json';
     <script type="module">
       import { createClient } from 'https://esm.sh/@supabase/supabase-js';
 
-      const SUPABASE_URL = ${JSON.stringify(SUPABASE_URL)};
-      const SUPABASE_KEY = ${JSON.stringify(SUPABASE_KEY)};
-      const VERCEL_HOOK = ${JSON.stringify(VERCEL_HOOK)};
-      const BUCKET = ${JSON.stringify(BUCKET)};
-      const FILE = ${JSON.stringify(FILE)};
+      // הזרקה מה-frontmatter (כמחרוזות)
+      const SUPABASE_URL = `${Astro.props.SUPABASE_URL ?? ""}`;
+      const SUPABASE_KEY = `${Astro.props.SUPABASE_KEY ?? ""}`;
 
       const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-
-      // ודא שהמשתמש מחובר
-      (async () => {
-        const session = (await supabase.auth.getSession()).data.session;
-        if (!session) {
-          alert('יש להתחבר כאדמין לפני פעולה זו');
-          location.href = '/auth/login';
-          return;
-        }
-      })();
 
       document.getElementById('propForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         const fd = new FormData(e.target);
         const newProp = {
-          id: Date.now(), // מזהה פשוט — אפשר לשנות ל־uuid
+          id: Date.now(),
           title: fd.get('title'),
           price: Number(fd.get('price')),
           address: fd.get('address'),
@@ -51,37 +43,27 @@ const FILE = 'properties.json';
           description: fd.get('description')
         };
 
-        // 1) הורד את הקובץ הנוכחי
-        const { data: downloadData, error: downloadError } = await supabase.storage.from(BUCKET).download(FILE);
-        let props = [];
-        if (downloadError && downloadError.status !== 404) {
-          return alert('שגיאה בקריאת הקובץ: ' + downloadError.message);
-        }
-        if (downloadData) {
-          const text = await downloadData.text();
-          try { props = JSON.parse(text); } catch { props = []; }
+        // קבל session (access token)
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+        if (!token) {
+          alert('יש להתחבר');
+          location.href = '/auth/login';
+          return;
         }
 
-        // 2) הוסף ושמור
-        props.push(newProp);
-        const blob = new Blob([JSON.stringify(props, null, 2)], { type: 'application/json' });
-        // אפשר לשלוח File או Blob
-        const { error: uploadError } = await supabase.storage.from(BUCKET).upload(FILE, blob, { upsert: true });
+        const res = await fetch('/api/update-and-deploy', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token
+          },
+          body: JSON.stringify({ action: 'add', property: newProp })
+        });
 
-        if (uploadError) {
-          return alert('שגיאה בהעלאה: ' + uploadError.message);
-        }
-
-        // 3) טריגר build ב־Vercel (אם יש)
-        if (VERCEL_HOOK) {
-          try {
-            await fetch(VERCEL_HOOK, { method: 'POST' });
-          } catch (e) {
-            console.warn('Vercel hook failed', e);
-          }
-        }
-
-        alert('דירה נוספה בהצלחה!');
+        const result = await res.json();
+        if (!res.ok) return alert('שגיאה: ' + (result.error || 'unknown'));
+        alert('דירה נוספה בהצלחה');
         location.href = '/';
       });
     </script>
